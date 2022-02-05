@@ -1,0 +1,119 @@
+---
+- name: Ensure the cloudflare repository is present
+  tags:
+    - cloudflared
+  become: true
+  yum:
+    name: "{{ cloudflared_release + '.rpm' }}"
+    state: present
+
+- name: Ensure the cloudflared package is present
+  tags:
+    - cloudflared
+  become: true
+  yum:
+    enablerepo: cloudflare
+    name: cloudflared
+    state: present
+
+- name: Ensure the cloudflared group is present
+  tags:
+    - cloudflared
+  become: true
+  group:
+    gid: "{{ cloudflared_gid }}"
+    name: "{{ cloudflared_group }}"
+    state: present
+    system: true
+
+- name: Ensure the cloudflared user is present
+  tags:
+    - cloudflared
+  become: true
+  user:
+    comment: cloudflared
+    create_home: true
+    group: "{{ cloudflared_group }}"
+    home: "{{ cloudflared_home }}"
+    name: "{{ cloudflared_user }}"
+    password: '*'
+    shell: "{{ cloudflared_shell }}"
+    state: present
+    system: true
+    uid: "{{ cloudflared_uid }}"
+
+- name: Ensure cloudflared configuration directory is present
+  tags:
+    - cloudflared
+  become: true
+  file:
+    group: "{{ cloudflared_group }}"
+    mode: '0700'
+    owner: "{{ cloudflared_user }}"
+    path: "{{ cloudflared_home + '/.cloudflared' }}"
+    state: directory
+
+- name: Ensure cloudflared json fact is present
+  tags:
+    - cloudflared
+  become: true
+  set_fact:
+    cloudflared_json:
+      AccountTag: "{{ cloudflared_account_tag }}"
+      TunnelID: "{{ cloudflared_tunnel_id }}"
+      TunnelName: "{{ cloudflared_tunnel_name }}"
+      TunnelSecret: "{{ cloudflared_tunnel_secret }}"
+  when:
+    - cloudflared_account_tag is defined
+    - cloudflared_tunnel_id is defined
+    - cloudflared_tunnel_name is defined
+    - cloudflared_tunnel_secret is defined
+
+- name: Overlay cloudflared configurations
+  tags:
+    - cloudflared
+  become: true
+  template:
+    dest: "{{ cloudflared_home + '/.cloudflared/' + _cloudflared.dest }}"
+    group: "{{ cloudflared_group }}"
+    mode: '0600'
+    owner: "{{ cloudflared_user }}"
+    src: "{{ _cloudflared.src }}"
+  loop:
+    - { src: cloudflared.json.j2, dest: "{{ cloudflared_tunnel_id + '.json' }}" }
+    - { src: cloudflared.pem.j2,  dest: cert.pem }
+    - { src: cloudflared.yml.j2,  dest: config.yml }
+  loop_control:
+    label: "{{ _cloudflared.src.split('.')[1] }}"
+    loop_var: _cloudflared
+  notify:
+    - restart cloudflared
+  when:
+    - cloudflared_account_tag is defined
+    - cloudflared_cert is defined
+    - cloudflared_tunnel_id is defined
+    - cloudflared_tunnel_name is defined
+    - cloudflared_tunnel_secret is defined
+
+- name: Overlay cloudflared systemd configuration
+  tags:
+    - cloudflared
+  become: true
+  template:
+    dest: /etc/systemd/system/cloudflared.service
+    group: root
+    mode: '0644'
+    owner: root
+    src: cloudflared.systemd.j2
+  notify:
+    - reload systemd
+
+- name: Ensure that cloudflared is started and enabled on boot
+  tags:
+    - cloudflared
+  become: true
+  service:
+    enabled: yes
+    name: cloudflared
+    state: started
+...

@@ -1,0 +1,14 @@
+---
+cloudflared_dist: "{{ 'el' + ansible_distribution_major_version }}"
+cloudflared_gid: 13335
+cloudflared_group: cloudflared
+cloudflared_home: /home/cloudflared
+cloudflared_ingress:
+  - service: http_status:404
+cloudflared_pkg: cloudflare-release-latest
+cloudflared_release: "{{ [cloudflared_repo, cloudflared_pkg + '.' + cloudflared_dist] | join('/') }}"
+cloudflared_repo: 'http://pkg.cloudflare.com'
+cloudflared_shell: /sbin/nologin
+cloudflared_uid: 13335
+cloudflared_user: cloudflared
+...
